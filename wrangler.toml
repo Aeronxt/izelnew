@@ -1,0 +1,18 @@
+name = "e-commerce-website"
+main = "src/worker.js"
+compatibility_date = "2024-07-01"
+
+# Environment variables (set these in Cloudflare dashboard or .dev.vars for local dev)
+[vars]
+NODE_ENV = "production"
+
+# KV namespace bindings (optional - for caching)
+# [[kv_namespaces]]
+# binding = "CACHE"
+# id = "your-kv-namespace-id"
+# preview_id = "your-preview-kv-namespace-id"
+
+# Routes configuration for custom domains
+# [[routes]]
+# pattern = "yourdomain.com/*"
+# zone_name = "yourdomain.com" 

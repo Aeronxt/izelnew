@@ -1,0 +1,9 @@
+# Cloudflare Workers Local Development Environment Variables
+# Copy this file to .dev.vars and fill in your actual values
+
+# Stripe Configuration
+STRIPE_SECRET_KEY=sk_test_your_stripe_test_key_here
+STRIPE_WEBHOOK_SECRET=whsec_your_webhook_secret_here
+
+# Environment
+NODE_ENV=development 

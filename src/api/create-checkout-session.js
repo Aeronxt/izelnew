@@ -1,44 +1,35 @@
 import Stripe from 'stripe';
-import dotenv from 'dotenv';
 
-// Load environment variables
-dotenv.config();
-
-// Initialize Stripe with error handling
-let stripe;
-try {
-  if (!process.env.STRIPE_SECRET_KEY) {
-    throw new Error('STRIPE_SECRET_KEY is not set in environment variables');
-  }
-  stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
-} catch (error) {
-  console.error('Stripe initialization error:', error);
-}
-
-export default async function handler(req, res) {
-  // Add CORS headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
-
-  if (req.method !== 'POST') {
-    return res.status(405).json({ message: 'Method not allowed' });
+export async function handleCreateCheckoutSession(request, env) {
+  // Initialize Stripe with error handling
+  let stripe;
+  try {
+    if (!env.STRIPE_SECRET_KEY) {
+      throw new Error('STRIPE_SECRET_KEY is not set in environment variables');
+    }
+    stripe = new Stripe(env.STRIPE_SECRET_KEY);
+  } catch (error) {
+    console.error('Stripe initialization error:', error);
+    return new Response(JSON.stringify({ 
+      message: 'Stripe initialization error',
+      error: error.message 
+    }), {
+      status: 500,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      },
+    });
   }
 
   try {
-    // Check if Stripe is properly initialized
-    if (!stripe) {
-      throw new Error('Stripe is not properly initialized');
-    }
-
+    // Parse request body
+    const body = await request.json();
+    
     // Log the request for debugging
-    console.log('Request body:', JSON.stringify(req.body, null, 2));
-    console.log('Stripe key exists:', !!process.env.STRIPE_SECRET_KEY);
-    console.log('Headers:', req.headers);
+    console.log('Request body:', JSON.stringify(body, null, 2));
+    console.log('Stripe key exists:', !!env.STRIPE_SECRET_KEY);
+    console.log('Headers:', Object.fromEntries(request.headers));
 
     const { 
       cartItems, 
@@ -47,31 +38,67 @@ export default async function handler(req, res) {
       discountAmount = 0,
       couponCode = '',
       orderId 
-    } = req.body || {};
+    } = body;
 
     // Validate required fields with detailed error messages
     if (!cartItems || !Array.isArray(cartItems)) {
-      return res.status(400).json({ message: 'Cart items must be an array' });
+      return new Response(JSON.stringify({ message: 'Cart items must be an array' }), {
+        status: 400,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
+      });
     }
 
     if (cartItems.length === 0) {
-      return res.status(400).json({ message: 'Cart items array is empty' });
+      return new Response(JSON.stringify({ message: 'Cart items array is empty' }), {
+        status: 400,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
+      });
     }
 
     if (!customerInfo) {
-      return res.status(400).json({ message: 'Customer information is required' });
+      return new Response(JSON.stringify({ message: 'Customer information is required' }), {
+        status: 400,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
+      });
     }
 
     if (!customerInfo.email) {
-      return res.status(400).json({ message: 'Customer email is required' });
+      return new Response(JSON.stringify({ message: 'Customer email is required' }), {
+        status: 400,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
+      });
     }
 
     if (!customerInfo.firstName || !customerInfo.lastName) {
-      return res.status(400).json({ message: 'Customer name is required' });
+      return new Response(JSON.stringify({ message: 'Customer name is required' }), {
+        status: 400,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
+      });
     }
 
     if (!orderId) {
-      return res.status(400).json({ message: 'Order ID is required' });
+      return new Response(JSON.stringify({ message: 'Order ID is required' }), {
+        status: 400,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
+      });
     }
 
     // Log the validated data
@@ -151,6 +178,9 @@ export default async function handler(req, res) {
       total
     });
 
+    // Get origin from request headers
+    const origin = request.headers.get('origin') || 'http://localhost:5173';
+
     // Create Stripe checkout session with error handling
     let session;
     try {
@@ -171,8 +201,8 @@ export default async function handler(req, res) {
           couponCode: couponCode || 'none',
           discountAmount: discountAmount.toString(),
         },
-        success_url: `${req.headers.origin || 'http://localhost:5173'}/order-confirmation?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${req.headers.origin || 'http://localhost:5173'}/checkout`,
+        success_url: `${origin}/order-confirmation?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${origin}/checkout`,
       };
 
       // Handle zero-amount payments (100% discount)
@@ -182,10 +212,16 @@ export default async function handler(req, res) {
         console.log('Zero amount order detected, handling as free order');
         
         // Return a special response for free orders
-        return res.status(200).json({ 
+        return new Response(JSON.stringify({ 
           sessionId: 'free_order',
-          url: `${req.headers.origin || 'http://localhost:5173'}/order-confirmation?free_order=true&order_id=${orderId}`,
+          url: `${origin}/order-confirmation?free_order=true&order_id=${orderId}`,
           isFreeOrder: true
+        }), {
+          status: 200,
+          headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+          },
         });
       }
 
@@ -201,18 +237,30 @@ export default async function handler(req, res) {
       url: session.url
     });
 
-    return res.status(200).json({ 
+    return new Response(JSON.stringify({ 
       sessionId: session.id,
       url: session.url 
+    }), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      },
     });
 
   } catch (error) {
     console.error('Error creating checkout session:', error);
     console.error('Error stack:', error.stack);
-    return res.status(500).json({ 
+    return new Response(JSON.stringify({ 
       message: 'Error creating checkout session',
       error: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      stack: env.NODE_ENV === 'development' ? error.stack : undefined
+    }), {
+      status: 500,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      },
     });
   }
 } 
